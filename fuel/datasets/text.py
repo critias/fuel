@@ -1,6 +1,8 @@
 from picklable_itertools import iter_, chain
 
 from fuel.datasets import Dataset
+import gzip
+import codecs
 
 
 class TextFile(Dataset):
@@ -66,7 +68,7 @@ class TextFile(Dataset):
     example_iteration_scheme = None
 
     def __init__(self, files, dictionary, bos_token='<S>', eos_token='</S>',
-                 unk_token='<UNK>', level='word', preprocess=None):
+                 unk_token='<UNK>', level='word', preprocess=None, encoding='utf8'):
         self.files = files
         self.dictionary = dictionary
         if bos_token is not None and bos_token not in dictionary:
@@ -82,15 +84,30 @@ class TextFile(Dataset):
             raise ValueError
         self.level = level
         self.preprocess = preprocess
+        self.encoding = encoding
         super(TextFile, self).__init__()
 
     def open(self):
-        return chain(*[iter_(open(f)) for f in self.files])
+        def smart_open(filename):
+            """ Opens files with gzip if it ends with .gz,
+                uses codecs reader if encoding is set
+            """
+            mode = 'rb' if self.encoding else 'r'
+            if filename.endswith('.gz'):
+                f = gzip.open(filename, mode)
+            else:
+                f = open(filename, mode)
+            if self.encoding:
+                return codecs_iterator(f, codecs.getreader(self.encoding))
+            else:
+                return iter_(f)
+        return chain(*[smart_open(f) for f in self.files])
 
     def get_data(self, state=None, request=None):
         if request is not None:
             raise ValueError
         sentence = next(state)
+
         if self.preprocess is not None:
             sentence = self.preprocess(sentence)
         data = [self.dictionary[self.bos_token]] if self.bos_token else []
