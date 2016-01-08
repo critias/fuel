@@ -88,12 +88,20 @@ class TextFile(Dataset):
         super(TextFile, self).__init__()
 
     def open(self):
+        def zipped(filename):
+            """ True if f is zipped """
+            with open(str(filename), 'rb') as f:
+                return f.read(2) == '\x1f\x8b'
+
         def smart_open(filename):
             """ Opens files with gzip if it ends with .gz,
                 uses codecs reader if encoding is set
             """
             mode = 'rb' if self.encoding else 'r'
-            if filename.endswith('.gz'):
+            if zipped(filename):
+                if not filename.endswith('.gz'):
+                    print 'Warning: "%s" looks like a zipped file but doesn\'t end'\
+                          'with .gz open it as zipped file anyway.'
                 f = gzip.open(filename, mode)
             else:
                 f = open(filename, mode)
