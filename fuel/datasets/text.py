@@ -1,4 +1,4 @@
-from picklable_itertools import iter_, chain
+from picklable_itertools import iter_, chain, codecs_iterator
 
 from fuel.datasets import Dataset
 import gzip
@@ -80,7 +80,7 @@ class TextFile(Dataset):
         if unk_token not in dictionary:
             raise ValueError
         self.unk_token = unk_token
-        if level not in ('word', 'character'):
+        if level not in ('word', 'character', 'byte'):
             raise ValueError
         self.level = level
         self.preprocess = preprocess
@@ -97,7 +97,7 @@ class TextFile(Dataset):
             """ Opens files with gzip if it ends with .gz,
                 uses codecs reader if encoding is set
             """
-            mode = 'rb' if self.encoding else 'r'
+            mode = 'rb' if self.encoding or self.level == 'byte' else 'r'
             if zipped(filename):
                 if not filename.endswith('.gz'):
                     print 'Warning: "%s" looks like a zipped file but doesn\'t end'\
@@ -120,13 +120,14 @@ class TextFile(Dataset):
             sentence = self.preprocess(sentence)
         data = [self.dictionary[self.bos_token]] if self.bos_token else []
         if self.level == 'word':
-            data.extend(self.dictionary.get(word,
-                                            self.dictionary[self.unk_token])
-                        for word in sentence.split())
+            data.extend(self.dictionary.get(word, self.dictionary[self.unk_token]) for word in sentence.split())
+        elif self.level in ('character', 'byte'):
+            data.extend(self.dictionary.get(char, self.dictionary[self.unk_token]) for char in sentence.strip())
+        elif self.level == 'byte':
+            data.extend(self.dictionary.get(char, self.dictionary[self.unk_token]) for char in sentence)
         else:
-            data.extend(self.dictionary.get(char,
-                                            self.dictionary[self.unk_token])
-                        for char in sentence.strip())
+            assert False
+
         if self.eos_token:
             data.append(self.dictionary[self.eos_token])
         return (data,)
